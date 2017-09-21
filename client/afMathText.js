@@ -1,6 +1,7 @@
 Template.afMathText.onCreated(function() {
     this.fieldId = Random.id();
     this.id = Random.id();
+    this.displayId = Random.id();
 })
 
 Template.afMathText.onRendered(function() {
@@ -18,6 +19,9 @@ Template.afMathText.helpers({
     },
     fieldId: function() {
         return Template.instance().fieldId;
+    },
+    displayId: function() {
+        return Template.instance().displayId;
     }
 })
 
@@ -25,6 +29,7 @@ Template.afMathText.events({
     'click .sqr' (event, instance) {
         instance.mathField.cmd('^');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
+
     },
     'click .pls' (event, instance) {
         instance.mathField.cmd('+');
@@ -54,11 +59,15 @@ Template.afMathText.events({
         instance.mathField.write('\\pi');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
     },
-    'click #math-field' (event) {
-        var $target = $("#displayExpress");
+    'click span.mq-editable-field.mq-math-mode' (event, instance) {
+        var $target = $("#"+instance.displayId);
 
-        //$target.fadeIn(300);
-        $target.css('display', 'show');
+        $target.fadeIn(300);
+    },
+    'click #closeButton' (event, instance) {
+        var $target = $("#"+instance.displayId);
+
+        $target.fadeOut(300);
     },
     'change .mq-textarea, paste .mq-textarea, keyup .mq-textarea, keydown .mq-textarea' (event, instance) {
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());

@@ -1,6 +1,6 @@
 Package.describe({
   name: 'vchitai:autoform-mathanswerbox',
-  version: '0.0.1',
+  version: '0.0.2',
   // Brief, one-line summary of the package.
   summary: 'Fast Math Answer Box for aldeed:autoform',
   // URL to the Git repository containing the source code for this package.
@@ -24,5 +24,19 @@ Package.onUse(function(api) {
         'client/afMathText.js',
         'client/mathquill.css',
         'client/mathquill.js',
+       
     ], 'client');
+
+    api.addAssets([
+       'client/font/Symbola.eot',
+       'client/font/Symbola.otf',
+       'client/font/Symbola.svg',
+       'client/font/Symbola.ttf',
+       'client/font/Symbola.woff',
+       'client/font/Symbola.woff2',
+       'client/font/Symbola-basic.eot',
+       'client/font/Symbola-basic.ttf',
+       'client/font/Symbola-basic.woff',
+       'client/font/Symbola-basic.woff2',
+      ],'client');
 });

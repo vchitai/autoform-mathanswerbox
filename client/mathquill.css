@@ -446,3 +446,41 @@
   filter: progid:DXImageTransform.Microsoft.Chroma(color='white');
   margin-top: -0.1em;
 }
+
+div.express {
+    display: inline-block;
+    padding: 5px 10px;
+    border: solid 1px;
+    border-radius: 4px;
+    margin-top: 5px;
+    height: 40px;
+    width: 40px;
+}
+
+div.MathJax_Display {
+    margin-top: 5px;
+}
+
+div#displayExpress {
+  width: 210px;
+  text-align: center;
+  margin-left: 0px;
+  display: none;
+}
+
+span.mq-editable-field.mq-math-mode {
+    max-width: 300px;
+    min-height: 27px;
+    display: block;
+}
+
+div#closeButton{
+      height: 20px;
+    width: 17px;
+    float: right;
+    border-radius: 3px;
+  background-color: rgba(255, 0, 0, 0.73);
+    color: #fff;
+    text-align: center;
+    padding-bottom: 3px;
+}
