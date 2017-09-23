@@ -29,35 +29,43 @@ Template.afMathText.events({
     'click .sqr' (event, instance) {
         instance.mathField.cmd('^');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
+        instance.mathField.focus();
 
     },
     'click .pls' (event, instance) {
         instance.mathField.cmd('+');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
+        instance.mathField.focus();
     },
     'click .min' (event, instance) {
         instance.mathField.cmd('-');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
+        instance.mathField.focus();
     },
     'click .mul' (event, instance) {
         instance.mathField.cmd('\\cdot');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
+        instance.mathField.focus();
     },
     'click .div' (event, instance) {
         instance.mathField.cmd('\\frac');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
+        instance.mathField.focus();
     },
     'click .sqrt' (event, instance) {
         instance.mathField.cmd('\\sqrt');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
+        instance.mathField.focus();
     },
     'click .sqrt3' (event, instance) {
         instance.mathField.write('\\sqrt[3]{}');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
+        instance.mathField.focus();
     },
     'click .pi' (event, instance) {
-        instance.mathField.write('\\pi');
+        instance.mathField.cmd('\\pi');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
+        instance.mathField.focus();
     },
     'click span.mq-editable-field.mq-math-mode' (event, instance) {
         var $target = $("#"+instance.displayId);

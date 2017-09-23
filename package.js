@@ -1,6 +1,6 @@
 Package.describe({
   name: 'vchitai:autoform-mathanswerbox',
-  version: '0.0.2',
+  version: '0.0.4',
   // Brief, one-line summary of the package.
   summary: 'Fast Math Answer Box for aldeed:autoform',
   // URL to the Git repository containing the source code for this package.
@@ -14,9 +14,9 @@ Package.onUse(function(api) {
   api.versionsFrom('1.5.1');
   api.use('ecmascript');
     api.use([
-        'templating',
+        'templating@1.3.1',
         'jquery',
-        'aldeed:autoform',
+        'aldeed:autoform@5.8.1',
     ], 'client');
 
     api.addFiles([

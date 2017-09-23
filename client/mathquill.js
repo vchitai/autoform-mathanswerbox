@@ -164,7 +164,10 @@ var P = (function(prototype, ownProperty, undefined) {
     // set the constructor property on the prototype, for convenience
     proto.constructor = C;
 
-    C.extend = function(def) { return P(C, def); }
+    C.mixin = function(def) {
+      Bare[prototype] = C[prototype] = P(C, def)[prototype];
+      return C;
+    }
 
     return (C.open = function(def) {
       extensions = {};
@@ -629,8 +632,7 @@ var Cursor = P(Point, function(_) {
     this[-dir] = oppDir;
     // by contract, .blur() is called after all has been said and done
     // and the cursor has actually been moved
-    // FIXME pass cursor to .blur() so text can fix cursor pointers when removing itself
-    if (oldParent !== parent && oldParent.blur) oldParent.blur(this);
+    if (oldParent !== parent && oldParent.blur) oldParent.blur();
   };
   _.insDirOf = function(dir, el) {
     prayDirection(dir);
@@ -914,7 +916,7 @@ var API = {}, Options = P(), optionProcessors = {}, Progenote = P(), EMBEDS = {}
 function insistOnInterVer() {
   if (window.console) console.warn(
     'You are using the MathQuill API without specifying an interface version, ' +
-    'which will fail in v1.0.0. Easiest fix is to do the following before ' +
+    'which will fail in v1.0.0. You can fix this easily by doing this before ' +
     'doing anything else:\n' +
     '\n' +
     '    MathQuill = MathQuill.getInterface(1);\n' +
@@ -1111,19 +1113,6 @@ function getInterface(v) {
       this.__controller.seek($(el), pageX, pageY);
       var cmd = Embed().setOptions(options);
       cmd.createLeftOf(this.__controller.cursor);
-    };
-    _.clickAt = function(clientX, clientY, target) {
-      target = target || document.elementFromPoint(clientX, clientY);
-
-      var ctrlr = this.__controller, root = ctrlr.root;
-      if (!jQuery.contains(root.jQ[0], target)) target = root.jQ[0];
-      ctrlr.seek($(target), clientX + pageXOffset, clientY + pageYOffset);
-      if (ctrlr.blurred) this.focus();
-      return this;
-    };
-    _.ignoreNextMousedown = function(fn) {
-      this.__controller.cursor.options.ignoreNextMousedown = fn;
-      return this;
     };
   });
   MQ.EditableField = function() { throw "wtf don't call me, I'm 'abstract'"; };
@@ -1962,9 +1951,9 @@ Controller.open(function(_) {
   _.selectLeft = function() { return this.selectDir(L); };
   _.selectRight = function() { return this.selectDir(R); };
 });
-// Parser MathBlock
+// Parser MathCommand
 var latexMathParser = (function() {
-  function commandToBlock(cmd) { // can also take in a Fragment
+  function commandToBlock(cmd) {
     var block = MathBlock();
     cmd.adopt(block, 0, 0);
     return block;
@@ -2145,7 +2134,6 @@ Controller.open(function(_, super_) {
  *******************************************************/
 
 Controller.open(function(_) {
-  Options.p.ignoreNextMousedown = noop;
   _.delegateMouseEvents = function() {
     var ultimateRootjQ = this.root.jQ;
     //drag-to-select event handling
@@ -2154,12 +2142,6 @@ Controller.open(function(_) {
       var root = Node.byId[rootjQ.attr(mqBlockId) || ultimateRootjQ.attr(mqBlockId)];
       var ctrlr = root.controller, cursor = ctrlr.cursor, blink = cursor.blink;
       var textareaSpan = ctrlr.textareaSpan, textarea = ctrlr.textarea;
-
-      e.preventDefault(); // doesn't work in IE\u22648, but it's a one-line fix:
-      e.target.unselectable = true; // http://jsbin.com/yagekiji/1
-
-      if (cursor.options.ignoreNextMousedown(e)) return;
-      else cursor.options.ignoreNextMousedown = noop;
 
       var target;
       function mousemove(e) { target = $(e.target); }
@@ -2191,6 +2173,8 @@ Controller.open(function(_) {
         if (!ctrlr.editable) rootjQ.prepend(textareaSpan);
         textarea.focus();
       }
+      e.preventDefault(); // doesn't work in IE\u22648, but it's a one-line fix:
+      e.target.unselectable = true; // http://jsbin.com/yagekiji/1
 
       cursor.blink = noop;
       ctrlr.seek($(e.target), e.pageX, e.pageY).cursor.startSelection();
@@ -2896,8 +2880,10 @@ var TextBlock = P(Node, function(_, super_) {
     return optWhitespace
       .then(string('{')).then(regex(/^[^}]*/)).skip(string('}'))
       .map(function(text) {
-        if (text.length === 0) return Fragment();
-
+        // TODO: is this the correct behavior when parsing
+        // the latex \text{} ?  This violates the requirement that
+        // the text contents are always nonempty.  Should we just
+        // disown the parent node instead?
         TextPiece(text).adopt(textBlock, 0, 0);
         return textBlock;
       })
@@ -2910,11 +2896,7 @@ var TextBlock = P(Node, function(_, super_) {
     });
   };
   _.text = function() { return '"' + this.textContents() + '"'; };
-  _.latex = function() {
-    var contents = this.textContents();
-    if (contents.length === 0) return '';
-    return '\\text{' + contents + '}';
-  };
+  _.latex = function() { return '\\text{' + this.textContents() + '}'; };
   _.html = function() {
     return (
         '<span class="mq-text-mode" mathquill-command-id='+this.id+'>'
@@ -2957,7 +2939,7 @@ var TextBlock = P(Node, function(_, super_) {
     else { // split apart
       var leftBlock = TextBlock();
       var leftPc = this.ends[L];
-      leftPc.disown().jQ.detach();
+      leftPc.disown();
       leftPc.adopt(leftBlock, 0, 0);
 
       cursor.insLeftOf(this);
@@ -3012,22 +2994,15 @@ var TextBlock = P(Node, function(_, super_) {
     }
   };
 
-  _.blur = function(cursor) {
+  _.blur = function() {
     MathBlock.prototype.blur.call(this);
-    if (!cursor) return;
-    if (this.textContents() === '') {
-      this.remove();
-      if (cursor[L] === this) cursor[L] = this[L];
-      else if (cursor[R] === this) cursor[R] = this[R];
-    }
-    else fuseChildren(this);
+    fuseChildren(this);
   };
 
   function fuseChildren(self) {
     self.jQ[0].normalize();
 
     var textPcDom = self.jQ[0].firstChild;
-    if (!textPcDom) return;
     pray('only node in TextBlock span is Text node', textPcDom.nodeType === 3);
     // nodeType === 3 has meant a Text node since ancient times:
     //   http://reference.sitepoint.com/javascript/Node/nodeType
@@ -3239,6 +3214,99 @@ API.TextField = function(APIClasses) {
     };
   });
 };
+/****************************************
+ * Input box to type backslash commands
+ ***************************************/
+
+var LatexCommandInput =
+CharCmds['\\'] = P(MathCommand, function(_, super_) {
+  _.ctrlSeq = '\\';
+  _.replaces = function(replacedFragment) {
+    this._replacedFragment = replacedFragment.disown();
+    this.isEmpty = function() { return false; };
+  };
+  _.htmlTemplate = '<span class="mq-latex-command-input mq-non-leaf">\\<span>&0</span></span>';
+  _.textTemplate = ['\\'];
+  _.createBlocks = function() {
+    super_.createBlocks.call(this);
+    this.ends[L].focus = function() {
+      this.parent.jQ.addClass('mq-hasCursor');
+      if (this.isEmpty())
+        this.parent.jQ.removeClass('mq-empty');
+
+      return this;
+    };
+    this.ends[L].blur = function() {
+      this.parent.jQ.removeClass('mq-hasCursor');
+      if (this.isEmpty())
+        this.parent.jQ.addClass('mq-empty');
+
+      return this;
+    };
+    this.ends[L].write = function(cursor, ch) {
+      cursor.show().deleteSelection();
+
+      if (ch.match(/[a-z]/i)) VanillaSymbol(ch).createLeftOf(cursor);
+      else {
+        this.parent.renderCommand(cursor);
+        if (ch !== '\\' || !this.isEmpty()) this.parent.parent.write(cursor, ch);
+      }
+    };
+    this.ends[L].keystroke = function(key, e, ctrlr) {
+      if (key === 'Tab' || key === 'Enter' || key === 'Spacebar') {
+        this.parent.renderCommand(ctrlr.cursor);
+        e.preventDefault();
+        return;
+      }
+      return super_.keystroke.apply(this, arguments);
+    };
+  };
+  _.createLeftOf = function(cursor) {
+    super_.createLeftOf.call(this, cursor);
+
+    if (this._replacedFragment) {
+      var el = this.jQ[0];
+      this.jQ =
+        this._replacedFragment.jQ.addClass('mq-blur').bind(
+          'mousedown mousemove', //FIXME: is monkey-patching the mousedown and mousemove handlers the right way to do this?
+          function(e) {
+            $(e.target = el).trigger(e);
+            return false;
+          }
+        ).insertBefore(this.jQ).add(this.jQ);
+    }
+  };
+  _.latex = function() {
+    return '\\' + this.ends[L].latex() + ' ';
+  };
+  _.renderCommand = function(cursor) {
+    this.jQ = this.jQ.last();
+    this.remove();
+    if (this[R]) {
+      cursor.insLeftOf(this[R]);
+    } else {
+      cursor.insAtRightEnd(this.parent);
+    }
+
+    var latex = this.ends[L].latex();
+    if (!latex) latex = ' ';
+    var cmd = LatexCmds[latex];
+    if (cmd) {
+      cmd = cmd(latex);
+      if (this._replacedFragment) cmd.replaces(this._replacedFragment);
+      cmd.createLeftOf(cursor);
+    }
+    else {
+      cmd = TextBlock();
+      cmd.replaces(latex);
+      cmd.createLeftOf(cursor);
+      cursor.insRightOf(cmd);
+      if (this._replacedFragment)
+        this._replacedFragment.remove();
+    }
+  };
+});
+
 /************************************
  * Symbols for Advanced Mathematics
  ***********************************/
@@ -3463,6 +3531,10 @@ LatexCmds.lbrack = bind(VanillaSymbol, '[');
 LatexCmds.rbrack = bind(VanillaSymbol, ']');
 
 //various symbols
+LatexCmds['\u222b'] =
+LatexCmds['int'] =
+LatexCmds.integral = bind(Symbol,'\\int ','<big>&int;</big>');
+
 LatexCmds.slash = bind(VanillaSymbol, '/');
 LatexCmds.vert = bind(VanillaSymbol,'|');
 LatexCmds.perp = LatexCmds.perpendicular = bind(VanillaSymbol,'\\perp ','&perp;');
@@ -3540,9 +3612,6 @@ LatexCmds.alef = LatexCmds.alefsym = LatexCmds.aleph = LatexCmds.alephsym =
 LatexCmds.xist = //LOL
 LatexCmds.xists = LatexCmds.exist = LatexCmds.exists =
   bind(VanillaSymbol,'\\exists ','&exist;');
-  
-LatexCmds.nexists = LatexCmds.nexist =
-      bind(VanillaSymbol, '\\nexists ', '&#8708;');
 
 LatexCmds.and = LatexCmds.land = LatexCmds.wedge =
   bind(VanillaSymbol,'\\wedge ','&and;');
@@ -3626,27 +3695,26 @@ optionProcessors.autoCommands = function(cmds) {
 var Letter = P(Variable, function(_, super_) {
   _.init = function(ch) { return super_.init.call(this, this.letter = ch); };
   _.createLeftOf = function(cursor) {
-    super_.createLeftOf.apply(this, arguments);
     var autoCmds = cursor.options.autoCommands, maxLength = autoCmds._maxLength;
     if (maxLength > 0) {
       // want longest possible autocommand, so join together longest
       // sequence of letters
-      var str = '', l = this, i = 0;
-      // FIXME: l.ctrlSeq === l.letter checks if first or last in an operator name
-      while (l instanceof Letter && l.ctrlSeq === l.letter && i < maxLength) {
+      var str = this.letter, l = cursor[L], i = 1;
+      while (l instanceof Letter && i < maxLength) {
         str = l.letter + str, l = l[L], i += 1;
       }
       // check for an autocommand, going thru substrings longest to shortest
       while (str.length) {
         if (autoCmds.hasOwnProperty(str)) {
-          for (var i = 1, l = this; i < str.length; i += 1, l = l[L]);
-          Fragment(l, this).remove();
+          for (var i = 2, l = cursor[L]; i < str.length; i += 1, l = l[L]);
+          Fragment(l, cursor[L]).remove();
           cursor[L] = l[L];
           return LatexCmds[str](str).createLeftOf(cursor);
         }
         str = str.slice(1);
       }
     }
+    super_.createLeftOf.apply(this, arguments);
   };
   _.italicize = function(bool) {
     this.isItalic = bool;
@@ -3671,7 +3739,7 @@ var Letter = P(Variable, function(_, super_) {
     // removeClass and delete flags from all letters before figuring out
     // which, if any, are part of an operator name
     Fragment(l[R] || this.parent.ends[L], r[L] || this.parent.ends[R]).each(function(el) {
-      el.italicize(true).jQ.removeClass('mq-first mq-last mq-followed-by-supsub');
+      el.italicize(true).jQ.removeClass('mq-first mq-last');
       el.ctrlSeq = el.letter;
     });
 
@@ -3690,21 +3758,8 @@ var Letter = P(Variable, function(_, super_) {
           first.ctrlSeq = (isBuiltIn ? '\\' : '\\operatorname{') + first.ctrlSeq;
           last.ctrlSeq += (isBuiltIn ? ' ' : '}');
           if (TwoWordOpNames.hasOwnProperty(word)) last[L][L][L].jQ.addClass('mq-last');
-          if (!shouldOmitPadding(first[L])) first.jQ.addClass('mq-first');
-          if (!shouldOmitPadding(last[R])) {
-            if (last[R] instanceof SupSub) {
-              var supsub = last[R]; // XXX monkey-patching, but what's the right thing here?
-              // Have operatorname-specific code in SupSub? A CSS-like language to style the
-              // math tree, but which ignores cursor and selection (which CSS can't)?
-              var respace = supsub.siblingCreated = supsub.siblingDeleted = function() {
-                supsub.jQ.toggleClass('mq-after-operator-name', !(supsub[R] instanceof Bracket));
-              };
-              respace();
-            }
-            else {
-              last.jQ.toggleClass('mq-last', !(last[R] instanceof Bracket));
-            }
-          }
+          if (nonOperatorSymbol(first[L])) first.jQ.addClass('mq-first');
+          if (nonOperatorSymbol(last[R])) last.jQ.addClass('mq-last');
 
           i += len - 1;
           first = last;
@@ -3713,13 +3768,12 @@ var Letter = P(Variable, function(_, super_) {
       }
     }
   };
-  function shouldOmitPadding(node) {
-    // omit padding if no node, or if node already has padding (to avoid double-padding)
-    return !node || (node instanceof BinaryOperator) || (node instanceof SummationNotation);
+  function nonOperatorSymbol(node) {
+    return node instanceof Symbol && !(node instanceof BinaryOperator);
   }
 });
 var BuiltInOpNames = {}; // the set of operator names like \sin, \cos, etc that
-  // are built-into LaTeX, see Section 3.17 of the Short Math Guide: http://tinyurl.com/jm9okjc
+  // are built-into LaTeX: http://latex.wikia.com/wiki/List_of_LaTeX_symbols#Named_operators:_sin.2C_cos.2C_etc.
   // MathQuill auto-unitalicizes some operator names not in that set, like 'hcf'
   // and 'arsinh', which must be exported as \operatorname{hcf} and
   // \operatorname{arsinh}. Note: over/under line/arrow \lim variants like
@@ -3989,11 +4043,8 @@ var PlusMinus = P(BinaryOperator, function(_) {
 
   _.contactWeld = _.siblingCreated = _.siblingDeleted = function(opts, dir) {
     if (dir === R) return; // ignore if sibling only changed on the right
-    // If the left sibling is a binary operator or a separator (comma, semicolon, colon)
-    // or an open bracket (open parenthesis, open square bracket)
-    // consider the operator to be unary, otherwise binary
     this.jQ[0].className =
-      (!this[L] || this[L] instanceof BinaryOperator || /^[,;:\(\[]$/.test(this[L].ctrlSeq) ? '' : 'mq-binary-operator');
+      (!this[L] || this[L] instanceof BinaryOperator ? '' : 'mq-binary-operator');
     return this;
   };
 });
@@ -4249,6 +4300,7 @@ var SupSub = P(MathCommand, function(_, super_) {
         break;
       }
     }
+    this.respace();
   };
   Options.p.charsThatBreakOutOfSupSub = '';
   _.finalizeTree = function() {
@@ -4296,6 +4348,10 @@ var SupSub = P(MathCommand, function(_, super_) {
       return block ? prefix + (l.length === 1 ? l : '{' + (l || ' ') + '}') : '';
     }
     return latex('_', this.sub) + latex('^', this.sup);
+  };
+  _.respace = _.siblingCreated = _.siblingDeleted = function(opts, dir) {
+    if (dir === R) return; // ignore if sibling only changed on the right
+    this.jQ.toggleClass('mq-limit', this[L].ctrlSeq === '\\int ');
   };
   _.addBlock = function(block) {
     if (this.supsub === 'sub') {
@@ -4442,26 +4498,6 @@ LatexCmds.product = bind(SummationNotation,'\\prod ','&prod;');
 
 LatexCmds.coprod =
 LatexCmds.coproduct = bind(SummationNotation,'\\coprod ','&#8720;');
-
-LatexCmds['\u222b'] =
-LatexCmds['int'] =
-LatexCmds.integral = P(SummationNotation, function(_, super_) {
-  _.init = function() {
-    var htmlTemplate =
-      '<span class="mq-int mq-non-leaf">'
-    +   '<big>&int;</big>'
-    +   '<span class="mq-supsub mq-non-leaf">'
-    +     '<span class="mq-sup"><span class="mq-sup-inner">&1</span></span>'
-    +     '<span class="mq-sub">&0</span>'
-    +     '<span style="display:inline-block;width:0">&#8203</span>'
-    +   '</span>'
-    + '</span>'
-    ;
-    Symbol.prototype.init.call(this, '\\int ', htmlTemplate);
-  };
-  // FIXME: refactor rather than overriding
-  _.createLeftOf = MathCommand.p.createLeftOf;
-});
 
 var Fraction =
 LatexCmds.frac =
@@ -4874,99 +4910,6 @@ var Embed = LatexCmds.embed = P(Symbol, function(_, super_) {
     ;
   };
 });
-/****************************************
- * Input box to type backslash commands
- ***************************************/
-
-var LatexCommandInput =
-CharCmds['\\'] = P(MathCommand, function(_, super_) {
-  _.ctrlSeq = '\\';
-  _.replaces = function(replacedFragment) {
-    this._replacedFragment = replacedFragment.disown();
-    this.isEmpty = function() { return false; };
-  };
-  _.htmlTemplate = '<span class="mq-latex-command-input mq-non-leaf">\\<span>&0</span></span>';
-  _.textTemplate = ['\\'];
-  _.createBlocks = function() {
-    super_.createBlocks.call(this);
-    this.ends[L].focus = function() {
-      this.parent.jQ.addClass('mq-hasCursor');
-      if (this.isEmpty())
-        this.parent.jQ.removeClass('mq-empty');
-
-      return this;
-    };
-    this.ends[L].blur = function() {
-      this.parent.jQ.removeClass('mq-hasCursor');
-      if (this.isEmpty())
-        this.parent.jQ.addClass('mq-empty');
-
-      return this;
-    };
-    this.ends[L].write = function(cursor, ch) {
-      cursor.show().deleteSelection();
-
-      if (ch.match(/[a-z]/i)) VanillaSymbol(ch).createLeftOf(cursor);
-      else {
-        this.parent.renderCommand(cursor);
-        if (ch !== '\\' || !this.isEmpty()) this.parent.parent.write(cursor, ch);
-      }
-    };
-    this.ends[L].keystroke = function(key, e, ctrlr) {
-      if (key === 'Tab' || key === 'Enter' || key === 'Spacebar') {
-        this.parent.renderCommand(ctrlr.cursor);
-        e.preventDefault();
-        return;
-      }
-      return super_.keystroke.apply(this, arguments);
-    };
-  };
-  _.createLeftOf = function(cursor) {
-    super_.createLeftOf.call(this, cursor);
-
-    if (this._replacedFragment) {
-      var el = this.jQ[0];
-      this.jQ =
-        this._replacedFragment.jQ.addClass('mq-blur').bind(
-          'mousedown mousemove', //FIXME: is monkey-patching the mousedown and mousemove handlers the right way to do this?
-          function(e) {
-            $(e.target = el).trigger(e);
-            return false;
-          }
-        ).insertBefore(this.jQ).add(this.jQ);
-    }
-  };
-  _.latex = function() {
-    return '\\' + this.ends[L].latex() + ' ';
-  };
-  _.renderCommand = function(cursor) {
-    this.jQ = this.jQ.last();
-    this.remove();
-    if (this[R]) {
-      cursor.insLeftOf(this[R]);
-    } else {
-      cursor.insAtRightEnd(this.parent);
-    }
-
-    var latex = this.ends[L].latex();
-    if (!latex) latex = ' ';
-    var cmd = LatexCmds[latex];
-    if (cmd) {
-      cmd = cmd(latex);
-      if (this._replacedFragment) cmd.replaces(this._replacedFragment);
-      cmd.createLeftOf(cursor);
-    }
-    else {
-      cmd = TextBlock();
-      cmd.replaces(latex);
-      cmd.createLeftOf(cursor);
-      cursor.insRightOf(cmd);
-      if (this._replacedFragment)
-        this._replacedFragment.remove();
-    }
-  };
-});
-
 var MQ1 = getInterface(1);
 for (var key in MQ1) (function(key, val) {
   if (typeof val === 'function') {
