@@ -446,6 +446,12 @@ div#displayExpress {
   display: none;
 }
 
+form>div.expression {
+    position: absolute;
+    background: #fff;
+    z-index: 100;
+}
+
 span.mq-editable-field.mq-math-mode {
     width: 100%;
     min-height: 48px;

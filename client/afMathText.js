@@ -6,7 +6,9 @@ Template.afMathText.onCreated(function() {
 
 Template.afMathText.onRendered(function() {
     var mathFieldSpan = document.getElementById(this.fieldId);
-
+    if (this.data.value.charAt(0) == '$')
+        this.data.value = this.data.value.substr(2, this.data.value.length-4);
+    $('#'+this.fieldId).html(this.data.value);
     var MQ = MathQuill.getInterface(2); // for backcompat
     this.mathField = MQ.MathField(mathFieldSpan, {
         spaceBehavesLikeTab: true
@@ -27,7 +29,7 @@ Template.afMathText.helpers({
 
 Template.afMathText.events({
     'click .sqr' (event, instance) {
-        instance.mathField.cmd('^');
+        instance.mathField.cmd('^2');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
         instance.mathField.focus();
 
@@ -43,7 +45,7 @@ Template.afMathText.events({
         instance.mathField.focus();
     },
     'click .mul' (event, instance) {
-        instance.mathField.cmd('\\cdot');
+        instance.mathField.cmd('\\times');
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
         instance.mathField.focus();
     },
@@ -70,12 +72,13 @@ Template.afMathText.events({
     'click span.mq-editable-field.mq-math-mode' (event, instance) {
         var $target = $("#"+instance.displayId);
 
-        $target.fadeIn(300);
+        $(".expression").children().fadeOut(0);
+        $target.fadeIn(0);
     },
     'click #closeButton' (event, instance) {
         var $target = $("#"+instance.displayId);
 
-        $target.fadeOut(300);
+        $target.fadeOut(0);
     },
     'change .mq-textarea, paste .mq-textarea, keyup .mq-textarea, keydown .mq-textarea' (event, instance) {
         $('input[type=text][data-id=' + instance.id + ']').val(instance.mathField.latex());
@@ -85,7 +88,11 @@ Template.afMathText.events({
 AutoForm.addInputType("math", {
     template: "afMathText",
     valueOut: function() {
-        return this.val();
+        let val = this.val();
+        if (val.charAt(0) == '$')
+            return val;
+        else 
+            return "$$"+val+"$$";
     },
     valueConverters: {
         "stringArray": AutoForm.valueConverters.stringToStringArray,
